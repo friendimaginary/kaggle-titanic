@@ -1,8 +1,17 @@
 # 99-scratch_paper.R
-tictoc::tic()
-pacman::p_load(tidyverse, vroom)
+# pacman::p_install("pak")
+options(repos = c(getOption("repos"), H2O.ai = "https://h2o-release.s3.amazonaws.com/h2o/rel-yu/3/R"))
+# pak::pkg_install(
+#   c("tidyverse", "vroom", "tictoc", "RCurl", "jsonlite", "h2o"),
+#   ask = FALSE,
+#   upgrade = TRUE
+# )
+pacman::p_load(tidyverse, vroom, h2o)
+# Finally, let's load H2O and start up an H2O cluster
+library(h2o)
+h2o.init()
 
-g_sub <- vroom::vroom("Data/gender_submission.csv")
+tictoc::tic()
 
 all_train <-
   vroom::vroom("Data/train.csv") %>%
@@ -11,8 +20,12 @@ all_train <-
 my_train <- all_train %>% sample_frac(0.80)
 my_test <- setdiff(all_train, my_train)
 
-pacman::p_load(h2o)
-h2o.init()
+# replace lines w/ script that always gets latest h2o
+
+# pacman::p_load(h2o)
+# h2o.init()
+
+source("R/98-get_latest_h2o.R")
 
 train.h2o <- as.h2o(my_train)
 
@@ -45,7 +58,7 @@ aml <- h2o.automl(
   training_frame = train.data
 )
 
-(aml@leaderboard)
+aml_lb <- aml@leaderboard
 
 
 test.data_id <- test.h2o[ , "PassengerId"]
@@ -59,5 +72,13 @@ rating_tab <-
               as_tibble() %>%
               select(PassengerId, Survived)) %>%
   mutate("match?" = predict == Survived)
-rating_tab$`match?` %>% sum() / 119
-tictoc::toc()
+pct <- rating_tab$`match?` %>% sum() / 119
+elapsed <- tictoc::toc()
+
+output <- c(
+  "elapsed time is {elapsed}",
+  "pct accurate is {pct}",
+  "\n",
+  rating_tab
+  )
+write_lines(output, "{lubridate::now()}_output.txt")
